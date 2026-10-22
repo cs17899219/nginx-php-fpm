@@ -31,7 +31,7 @@ fi
 
 # Disable opcache
 if [ ! -z "$OPcache" ]; then
- sed -i 's#zend_extension=opcache#;zend_extension=opcache#g' /usr/local/etc/php/php.ini
+ sed -i 's#^zend_extension=opcache#;zend_extension=opcache#g' /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini
 fi
 
 # Setup git variables
@@ -134,7 +134,7 @@ if [ -f /etc/nginx/sites-available/default-ssl.conf ]; then
 fi
 
 # Set the desired timezone
-echo date.timezone=Europe/London > /usr/local/etc/php/conf.d/timezone.ini
+echo date.timezone=${TZ} > /usr/local/etc/php/conf.d/timezone.ini
 
 # Display errors in docker logs
 if [ ! -z "$PHP_ERRORS_STDERR" ]; then
@@ -200,7 +200,7 @@ if [ ! -z "$PUID" ]; then
   adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx -u ${PUID} nginx
 else
   if [ -z "$SKIP_CHOWN" ]; then
-    chown -Rf nginx.nginx /var/www/html
+    chown -Rf nginx:nginx /var/www/html
   fi
 fi
 
