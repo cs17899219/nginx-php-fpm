@@ -5,17 +5,23 @@ timestamp() {
 }
 
 if [ -z "$GIT_EMAIL" ]; then
- echo "You need to pass the \$GIT_EMAIL variable to the container for this to work"
- exit
+ echo "You need to pass the \$GIT_EMAIL variable to the container for this to work" >&2
+ exit 1
 fi
 
 if [ -z "$GIT_NAME" ]; then
- echo "You need to pass the \$GIT_NAME variable to the container for this to work"
- exit
+ echo "You need to pass the \$GIT_NAME variable to the container for this to work" >&2
+ exit 1
 fi
 
 ts=$(timestamp)
-cd ${WEBROOT}
-git add .
-git commit -a -m "push from container $ts"
+cd "/var/www/html" || exit 1
+git add . || exit 1
+git diff --cached --quiet
+status=$?
+if [ "$status" = 1 ]; then
+ git commit -a -m "push from container $ts" || exit 1
+elif [ "$status" != 0 ]; then
+ exit "$status"
+fi
 git push

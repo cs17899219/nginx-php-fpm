@@ -1,11 +1,18 @@
 #!/bin/bash
 
-# Disable Strict Host checking for non interactive git clones
+# Numeric size settings are MiB, never arbitrary INI/sed input.
+for setting in PHP_MEM_LIMIT PHP_POST_MAX_SIZE PHP_UPLOAD_MAX_FILESIZE; do
+ value=${!setting}
+ if [[ -n "$value" && ( ! "$value" =~ ^[0-9]+$ || ! "$value" =~ [1-9] ) ]]; then
+  echo "$setting must be a positive integer in MiB" >&2
+  exit 1
+ fi
+done
 
+# Require provisioned host keys for non-interactive git operations.
 mkdir -p -m 0700 /root/.ssh
-# Prevent config files from being filled to infinity by force of stop and restart the container 
-echo "" > /root/.ssh/config
-echo -e "Host *\n\tStrictHostKeyChecking no\n" >> /root/.ssh/config
+# Leave supplied known_hosts intact; unknown hosts must fail closed.
+printf 'Host *\n\tStrictHostKeyChecking yes\n' > /root/.ssh/config
 
 if [[ "$GIT_USE_SSH" == "1" ]] ; then
   echo -e "Host *\n\tUser ${GIT_USERNAME}\n\n" >> /root/.ssh/config
@@ -110,9 +117,8 @@ fi
 # Display Version Details or not
 if [[ "$HIDE_NGINX_HEADERS" == "0" ]] ; then
  sed -i "s/server_tokens off;/server_tokens on;/g" /etc/nginx/nginx.conf
-else
- sed -i "s/expose_php = On/expose_php = Off/g" /usr/local/etc/php-fpm.conf
 fi
+printf 'expose_php = Off\n' > /usr/local/etc/php/conf.d/zz-expose-php.ini
 
 # Pass real-ip to logs when behind ELB, etc
 if [[ "$REAL_IP_HEADER" == "1" ]] ; then
@@ -142,9 +148,10 @@ if [ ! -z "$PHP_ERRORS_STDERR" ]; then
   echo "error_log = /dev/stderr" >> /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
-# Increase the memory_limit
-if [ ! -z "$PHP_MEM_LIMIT" ]; then
- sed -i "s/memory_limit = 128M/memory_limit = ${PHP_MEM_LIMIT}M/g" /usr/local/etc/php/conf.d/docker-vars.ini
+# Replace the directive regardless of its previous value.
+if [ -n "$PHP_MEM_LIMIT" ]; then
+ sed -i '/^[[:space:]]*memory_limit[[:space:]]*=/d' /usr/local/etc/php/conf.d/docker-vars.ini
+ printf 'memory_limit = %sM\n' "$PHP_MEM_LIMIT" >> /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
 # Increase the post_max_size
@@ -157,38 +164,17 @@ if [ ! -z "$PHP_UPLOAD_MAX_FILESIZE" ]; then
  sed -i "s/upload_max_filesize = 100M/upload_max_filesize= ${PHP_UPLOAD_MAX_FILESIZE}M/g" /usr/local/etc/php/conf.d/docker-vars.ini
 fi
 
-# Enable xdebug
-XdebugFile='/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini'
+# Use the same single loader path as the image build, not docker-php-ext-enable.
+XdebugFile='/usr/local/etc/php/conf.d/xdebug.ini'
 if [[ "$ENABLE_XDEBUG" == "1" ]] ; then
-  if [ -f $XdebugFile ]; then
-  	echo "Xdebug enabled"
-  else
-  	echo "Enabling xdebug"
-  	echo "If you get this error, you can safely ignore it: /usr/local/bin/docker-php-ext-enable: line 83: nm: not found"
-  	# see https://github.com/docker-library/php/pull/420
-    docker-php-ext-enable xdebug
-    # see if file exists
-    if [ -f $XdebugFile ]; then
-        # See if file contains xdebug text.
-        if grep -q xdebug.remote_enable "$XdebugFile"; then
-            echo "Xdebug already enabled... skipping"
-        else
-            echo "zend_extension=$(find /usr/local/lib/php/extensions/ -name xdebug.so)" > $XdebugFile # Note, single arrow to overwrite file.
-            echo "xdebug.start_with_request=yes"  >> $XdebugFile
-            echo "xdebug.client_host=host.docker.internal" >> $XdebugFile
-            echo "xdebug.mode=debug" >> $XdebugFile
-            echo "xdebug.remote_log=/tmp/xdebug.log"  >> $XdebugFile
-            echo "xdebug.remote_autostart=false "  >> $XdebugFile # I use the xdebug chrome extension instead of using autostart
-            # NOTE: xdebug.remote_host is not needed here if you set an environment variable in docker-compose like so `- XDEBUG_CONFIG=remote_host=192.168.111.27`.
-            #       you also need to set an env var `- PHP_IDE_CONFIG=serverName=docker`
-        fi
-    fi
-  fi
+ cat > "$XdebugFile" <<'INI'
+zend_extension=xdebug
+xdebug.start_with_request=yes
+xdebug.client_host=host.docker.internal
+xdebug.mode=debug
+INI
 else
-    if [ -f $XdebugFile ]; then
-        echo "Disabling Xdebug"
-      rm $XdebugFile
-    fi
+ rm -f "$XdebugFile"
 fi
 
 if [ ! -z "$PUID" ]; then
@@ -223,10 +209,8 @@ if [ -z "$SKIP_COMPOSER" ]; then
     # Try auto install for composer
     if [ -f "/var/www/html/composer.lock" ]; then
         if [ "$APPLICATION_ENV" == "development" ]; then
-            composer global require hirak/prestissimo
             composer install --working-dir=/var/www/html
         else
-            composer global require hirak/prestissimo
             composer install --no-dev --working-dir=/var/www/html
         fi
     fi

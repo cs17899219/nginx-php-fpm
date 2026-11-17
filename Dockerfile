@@ -68,14 +68,13 @@ RUN apk add --no-cache --virtual .sys-deps \
     pecl install -o -f mongodb-2.0.0 && \
     echo "extension=redis.so" > /usr/local/etc/php/conf.d/redis.ini && \
     echo "extension=mongodb.so" > /usr/local/etc/php/conf.d/mongodb.ini && \
-    echo "zend_extension=xdebug" > /usr/local/etc/php/conf.d/xdebug.ini && \
     docker-php-source delete && \
     mkdir -p /var/www/app && \
   # Install composer and certbot
     mkdir -p /var/log/supervisor && \
-    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
-    php composer-setup.php --quiet --install-dir=/usr/bin --filename=composer && \
-    rm composer-setup.php &&\
+    curl -fsSL https://getcomposer.org/download/2.11.2/composer.phar -o /usr/bin/composer && \
+    echo 'dd158c0afd41d15fac89e1b4e47b5d42911fe316c3687cd5edac98319b25d028  /usr/bin/composer' | sha256sum -c - && \
+    chmod 755 /usr/bin/composer &&\
     apk add certbot && \
     mkdir -p /etc/letsencrypt/webrootauth && \
     apk del gcc musl-dev linux-headers libffi-dev augeas-dev python3-dev make autoconf && \
