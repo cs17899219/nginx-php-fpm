@@ -138,7 +138,13 @@ ADD src/ /var/www/html/
 ADD errors/ /var/www/errors
 
 
-EXPOSE 443 80
+COPY conf/entry-security/ /opt/entry-security/
+COPY scripts/entry-security.sh scripts/install-entry-security.sh /opt/entry-security/
+RUN sh /opt/entry-security/install-entry-security.sh \
+    && nginx -t \
+    && php-fpm -t --fpm-config /usr/local/etc/php-fpm-entry.conf
+
+EXPOSE 80
 
 WORKDIR "/var/www/html"
 CMD ["/start.sh"]

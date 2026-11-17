@@ -15,7 +15,7 @@ for opcache in enabled disabled; do
     toggle=
     [ "$opcache" = enabled ] || toggle=1
     container=$(docker run -d -e TZ=Asia/Shanghai -e "OPcache=$toggle" "$image")
-    docker exec -i "$container" sh -c 'cat > /var/www/html/upgrade-smoke.php' <<'PHP'
+    docker exec -i "$container" sh -c 'cat > /var/www/html/index.php' <<'PHP'
 <?php
 $extensions = ['sodium', 'gd', 'mysqli', 'pdo_mysql', 'xsl', 'zip', 'redis', 'mongodb'];
 foreach ($extensions as $extension) {
@@ -33,7 +33,7 @@ echo PHP_VERSION . ':' . (extension_loaded('Zend OPcache') ? 'enabled' : 'disabl
 PHP
     ready=false
     for attempt in $(seq 1 30); do
-        if response=$(docker exec "$container" curl -fsS --max-time 2 http://127.0.0.1/upgrade-smoke.php 2>/dev/null); then
+        if response=$(docker exec "$container" curl -fsS --max-time 2 http://127.0.0.1/index.php 2>/dev/null); then
             ready=true
             break
         fi
@@ -41,7 +41,7 @@ PHP
     done
     [ "$ready" = true ]
     [ "$response" = "8.2.35:$opcache" ]
-    docker exec "$container" php-fpm -t --fpm-config /usr/local/etc/php-fpm.d/www.conf
+    docker exec "$container" php-fpm -t --fpm-config /usr/local/etc/php-fpm-entry.conf
     docker exec "$container" sh -ec '
         grep -q "^3\.24\." /etc/alpine-release
         certbot --version
@@ -71,10 +71,12 @@ NGINX
     [ "$ready" = true ]
     [ "$response" = lua-ok ]
     docker exec "$container" supervisorctl status
+    # Temporary module probe is not a supported production site.
+    docker exec "$container" rm /etc/nginx/sites-enabled/upgrade-lua.conf
     docker restart "$container" >/dev/null
     ready=false
     for attempt in $(seq 1 30); do
-        if response=$(docker exec "$container" curl -fsS --max-time 2 http://127.0.0.1/upgrade-smoke.php 2>/dev/null); then
+        if response=$(docker exec "$container" curl -fsS --max-time 2 http://127.0.0.1/index.php 2>/dev/null); then
             ready=true
             break
         fi
