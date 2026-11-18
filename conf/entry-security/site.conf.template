@@ -1,6 +1,6 @@
 server {
-    listen 80;
-    listen [::]:80 default ipv6only=on;
+    listen 8080;
+    listen [::]:8080 default ipv6only=on;
     server_name _;
     root @WEBROOT@;
     index index.php index.html index.htm;
@@ -18,7 +18,7 @@ server {
         try_files /index.php =404;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root/index.php;
-        fastcgi_pass unix:/var/run/php-fpm.sock;
+        fastcgi_pass unix:/run/nginx/php-fpm.sock;
     }
     # Before all static regex locations: deny execution AND source downloads.
     location ~* \.(?:php[0-9]*|phtml|phar)(?:/|$) {

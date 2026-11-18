@@ -5,8 +5,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.error
-import urllib.request
 
 image = sys.argv[1]
 
@@ -36,25 +34,28 @@ echo json_encode(['uri'=>$_SERVER['REQUEST_URI'], 'method'=>$_SERVER['REQUEST_ME
         p.write_text('<?php file_put_contents("/tmp/probe-executed", "yes"); echo "PROBE_MARKER";')
     (web / '.user.ini').write_text('; PROBE_MARKER\n')
     (web / 'style.css').write_text('body { color: black; }')
-    name = docker('run', '-d', '-p', '127.0.0.1::80', '-e', 'WEBROOT=/var/www/html/frontend/web',
+    name = docker('run', '-d', '--network=none', '--cap-drop=ALL', '--cap-add=CHOWN',
+                  '--cap-add=FOWNER', '--cap-add=SETUID', '--cap-add=SETGID',
+                  '--security-opt=no-new-privileges:true', '-e', 'WEBROOT=/var/www/html/frontend/web',
                   '-e', 'SKIP_COMPOSER=1', '-e', 'TZ=UTC', '-v', f'{root}:/var/www/html:ro', image)
     try:
-        port = docker('port', name, '80/tcp').rsplit(':', 1)[1]
-        base = f'http://127.0.0.1:{port}'
-
         def request(path, body=None, headers=None):
-            try:
-                with urllib.request.urlopen(urllib.request.Request(base + path, data=body, headers=headers or {}), timeout=3) as response:
-                    return response.status, response.read()
-            except urllib.error.HTTPError as error:
-                return error.code, error.read()
+            args = ['docker', 'exec', '-u', '100:101', name, 'curl', '-sS', '--max-time', '3', '-w', '\\n%{http_code}']
+            for key, value in (headers or {}).items():
+                args.extend(['-H', f'{key}: {value}'])
+            if body is not None:
+                args.extend(['--data-binary', body.decode()])
+            args.append('http://127.0.0.1:8080' + path)
+            result = subprocess.run(args, capture_output=True, check=True)
+            data, status = result.stdout.rsplit(b'\n', 1)
+            return int(status), data
 
         def ready():
             for _ in range(60):
                 try:
                     if request('/index.php')[0] == 200:
                         return
-                except (OSError, urllib.error.URLError):
+                except (OSError, subprocess.CalledProcessError):
                     pass
                 time.sleep(0.5)
             raise AssertionError(docker('logs', name))
@@ -62,8 +63,6 @@ echo json_encode(['uri'=>$_SERVER['REQUEST_URI'], 'method'=>$_SERVER['REQUEST_ME
         for restart in range(2):
             if restart:
                 docker('restart', name)
-                port = docker('port', name, '80/tcp').rsplit(':', 1)[1]
-                base = f'http://127.0.0.1:{port}'
             ready()
             for path in ['/controller/action?source=app', '/csapi/login/login?source=app', '/index.php?r=health']:
                 payload = b'{"hello":"world"}'
@@ -79,13 +78,13 @@ echo json_encode(['uri'=>$_SERVER['REQUEST_URI'], 'method'=>$_SERVER['REQUEST_ME
                 status, data = request('/' + path)
                 assert status in (403, 404) and b'PROBE_MARKER' not in data and b'<?php' not in data, (path, status, data)
             assert request('/style.css') == (200, b'body { color: black; }')
-            docker('exec', name, 'sh', '-c', 'test ! -e /tmp/probe-executed && test "$(stat -c %a /var/run/php-fpm.sock)" = 660')
-            docker('exec', '-u', 'nobody', name, 'sh', '-c', 'test ! -w /var/run/php-fpm.sock')
+            docker('exec', '-u', '100:101', name, 'sh', '-c', 'test ! -e /tmp/probe-executed && test "$(stat -c %a /run/nginx/php-fpm.sock)" = 660')
+            docker('exec', '-u', 'nobody', name, 'sh', '-c', 'test ! -w /run/nginx/php-fpm.sock')
             docker('exec', '-u', 'nginx', name, 'sh', '-c', 'if ( : >> /var/www/html/frontend/web/index.php ) 2>/dev/null; then exit 1; fi')
-            config = docker('exec', name, 'nginx', '-T')
+            config = docker('exec', '-u', '100:101', name, 'nginx', '-e', 'stderr', '-T')
             assert config.count('fastcgi_pass ') == 1
             assert config.count('fastcgi_param SCRIPT_FILENAME $document_root/index.php;') == 1
-            fpm = subprocess.run(['docker', 'exec', name, 'php-fpm', '-tt', '--fpm-config', '/usr/local/etc/php-fpm-entry.conf'], capture_output=True, text=True, check=True)
+            fpm = subprocess.run(['docker', 'exec', '-u', '100:101', name, 'php-fpm', '-tt', '--fpm-config', '/usr/local/etc/php-fpm-entry.conf'], capture_output=True, text=True, check=True)
             assert 'security.limit_extensions = .php' in fpm.stderr
         print('PASS: routing, body/auth/cookie, includes, source denial, socket, restart:', image)
     finally:

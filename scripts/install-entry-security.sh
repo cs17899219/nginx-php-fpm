@@ -1,21 +1,30 @@
 #!/bin/sh
 set -eu
-# Fail on a changed base startup contract rather than installing a hook that never runs.
-test "$(grep -c '^exec /usr/bin/supervisord -n -c /etc/supervisord.conf$' /start.sh)" = 1
-# The base ships an inactive SSL example; it must not become a second PHP entry.
-test ! -e /etc/nginx/sites-enabled/default-ssl.conf
+apk add --no-cache su-exec
+# Discard the inherited privileged startup; it is never a runtime dependency.
+rm -f /start-base.sh /opt/entry-security/entry-security.sh /opt/entry-security/config.sha256 /run/nginx/nginx.pid
+cp /opt/entry-security/start.sh /start.sh
+chmod 755 /start.sh
+mkdir -p /opt/app-init /etc/supervisor/conf.d
 rm -f /etc/nginx/sites-available/default-ssl.conf
-mv /start.sh /start-base.sh
-sed -i '2a set -e' /start-base.sh
-# The inherited ERRORS setting appends a pool directive on every restart.
-sed -i '/^# Display PHP error/ i sed -i "/^php_flag.*display_errors.* = /d" /usr/local/etc/php-fpm.d/www.conf' /start-base.sh
-sed -i 's|^exec /usr/bin/supervisord -n -c /etc/supervisord.conf$|exec /start.sh --final|' /start-base.sh
-cp /opt/entry-security/entry-security.sh /start.sh
-chmod 755 /start.sh /start-base.sh
-sed -i 's|--fpm-config /usr/local/etc/php-fpm.d/www.conf|--fpm-config /usr/local/etc/php-fpm-entry.conf|' /etc/supervisord.conf
-grep -q -- '--fpm-config /usr/local/etc/php-fpm-entry.conf' /etc/supervisord.conf
-# The base leaves the Nginx worker user implicit; 0660 requires an explicit identity.
-sed -i '1i user nginx nginx;' /etc/nginx/nginx.conf
-sha256sum /etc/nginx/nginx.conf /etc/nginx/fastcgi_params /etc/supervisord.conf > /opt/entry-security/config.sha256
-sed 's|@WEBROOT@|/var/www/html|g' /opt/entry-security/site.conf.template > /etc/nginx/sites-available/default.conf
+# Keep reviewed originals separate from generated settings.
+sed -i '/^user /d; /^#user /d' /etc/nginx/nginx.conf
+sed -i '1i pid /run/nginx/nginx.pid;\nerror_log /dev/stderr warn;' /etc/nginx/nginx.conf
+sed -i '/http {/a\    client_body_temp_path /run/nginx/client;\n    proxy_temp_path /run/nginx/proxy;\n    fastcgi_temp_path /run/nginx/fastcgi;\n    uwsgi_temp_path /run/nginx/uwsgi;\n    scgi_temp_path /run/nginx/scgi;' /etc/nginx/nginx.conf
+cp /etc/nginx/nginx.conf /opt/entry-security/nginx.conf.template
+sed -i 's|command=/usr/sbin/nginx |command=/usr/sbin/nginx -e /dev/stderr |; s|user=root.*|user=nginx|; s|/dev/shm/supervisor.sock|/run/nginx/supervisor.sock|g; s|/tmp/supervisord|/run/nginx/supervisord|g; s|--fpm-config /usr/local/etc/php-fpm.d/www.conf|--fpm-config /usr/local/etc/php-fpm-entry.conf|' /etc/supervisord.conf
 printf 'include=/usr/local/etc/php-fpm.d/www.conf\ninclude=/opt/entry-security/entry-security.conf\n' > /usr/local/etc/php-fpm-entry.conf
+sed 's|@WEBROOT@|/var/www/html|g' /opt/entry-security/site.conf.template > /etc/nginx/sites-available/default.conf
+printf '; generated at root init\n' > /usr/local/etc/php/conf.d/zz-runtime.ini
+printf '; disabled\n' > /usr/local/etc/php/conf.d/xdebug.ini
+# Old images may contain these inherited startup outputs.
+rm -f /usr/local/etc/php/conf.d/timezone.ini /usr/local/etc/php/conf.d/zz-expose-php.ini
+mkdir -p /run/nginx /var/lib/nginx /var/log/nginx
+chown nginx:nginx /run/nginx /var/lib/nginx /var/log/nginx
+chmod 750 /run/nginx /var/lib/nginx /var/log/nginx
+chown -R root:root /opt/entry-security /opt/app-init /etc/nginx /usr/local/etc /etc/supervisor
+chmod -R go-w /opt/entry-security /opt/app-init /etc/nginx /usr/local/etc /etc/supervisor
+printf '' > /opt/entry-security/bootstrap.sha256
+printf '{}\n' > /opt/entry-security/manifest.json
+printf '{}\n' > /opt/app-init/manifest.json
+/usr/bin/python3 -I -S /opt/entry-security/security.py --seal

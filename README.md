@@ -4,6 +4,16 @@
 
 This fork builds `cs17899219/nginx-php-fpm:3.1.6-up2` from the verified up1 source baseline, with a single `/index.php` HTTP execution entry. Read [up2 migration, tests and release gates](docs/3.1.6-up2.md) before deployment. Custom Nginx sites and in-container HTTPS described in the inherited upstream documentation below are **not supported by this hardened profile**. GitHub Actions publication has been removed; images are built and pushed manually. `/usr/bin/pull` is disabled: deploy a rebuilt application image instead. A source push does not imply image publication or application acceptance.
 
+## Controlled root-init profile (local test)
+
+Current source replaces inherited root startup with integrity-checked initialization,
+optional sealed `/opt/app-init/{root,runtime}.sh` hooks, and permanent nginx UID 100
+runtime on HTTP **8080**. Read [the hook/build/deployment contract](docs/root-init.md)
+and [local verification evidence](docs/root-init-report.md). Git/Composer/RUN_SCRIPTS,
+UID remapping, source chown and imported application configurations are no longer
+startup features. The inherited upstream instructions below are historical and do
+not override this profile. No release publication is implied.
+
 ## Overview
 This is a Dockerfile/image to build a container for nginx and php-fpm, with the ability to pull website code from git when the container is created, as well as allowing the container to push and pull changes to the code to and from git. The container also has the ability to update templated files with variables passed to docker in order to update your code and settings. There is support for lets encrypt SSL configurations, custom nginx configs, core nginx/PHP variable overrides for running preferences, X-Forwarded-For headers and UID mapping for local volume support.
 

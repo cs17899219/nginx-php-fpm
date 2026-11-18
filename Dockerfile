@@ -17,6 +17,7 @@ RUN apk add --no-cache nginx \
 RUN apk update && apk upgrade &&\
     apk add --no-cache \
     bash \
+    su-exec \
     openssh-client \
     wget \
     supervisor \
@@ -138,12 +139,14 @@ ADD errors/ /var/www/errors
 
 
 COPY conf/entry-security/ /opt/entry-security/
-COPY scripts/entry-security.sh scripts/install-entry-security.sh /opt/entry-security/
+COPY scripts/start.sh scripts/security.py scripts/install-entry-security.sh /opt/entry-security/
 RUN sh /opt/entry-security/install-entry-security.sh \
-    && nginx -t \
-    && php-fpm -t --fpm-config /usr/local/etc/php-fpm-entry.conf
+    && nginx -e stderr -t \
+    && php-fpm -t --fpm-config /usr/local/etc/php-fpm-entry.conf \
+    && rm -f /run/nginx/nginx.pid
 
-EXPOSE 80
+EXPOSE 8080
 
 WORKDIR "/var/www/html"
-CMD ["/start.sh"]
+ENTRYPOINT ["/start.sh"]
+CMD []

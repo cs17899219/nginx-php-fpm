@@ -2,7 +2,12 @@
 ARG BASE_IMAGE=cs17899219/nginx-php-fpm@sha256:30958d210562384d55362152542bd355851c571cbe581c02d26eed4dc465cf23
 FROM ${BASE_IMAGE}
 COPY conf/entry-security/ /opt/entry-security/
-COPY scripts/entry-security.sh scripts/install-entry-security.sh /opt/entry-security/
+COPY scripts/start.sh scripts/security.py scripts/install-entry-security.sh /opt/entry-security/
 RUN sh /opt/entry-security/install-entry-security.sh \
-    && nginx -t \
-    && php-fpm -t --fpm-config /usr/local/etc/php-fpm-entry.conf
+    && nginx -e stderr -t \
+    && php-fpm -t --fpm-config /usr/local/etc/php-fpm-entry.conf \
+    && rm -f /run/nginx/nginx.pid
+EXPOSE 8080
+USER root
+ENTRYPOINT ["/start.sh"]
+CMD []
