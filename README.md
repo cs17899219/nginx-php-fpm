@@ -1,10 +1,10 @@
 ## nginx-php-fpm - ![docker hub](https://img.shields.io/docker/pulls/richarvey/nginx-php-fpm.svg) ![docker hub](https://img.shields.io/docker/stars/richarvey/nginx-php-fpm.svg) ![Github](https://img.shields.io/github/stars/richarvey/nginx-php-fpm.svg) ![docker version](https://img.shields.io/docker/v/richarvey/nginx-php-fpm?sort=semver)
 
-## Fork release: 3.1.6-up2
+## Fork release: 3.1.6-up3
 
-This fork builds `cs17899219/nginx-php-fpm:3.1.6-up2` from the verified up1 source baseline, with a single `/index.php` HTTP execution entry. Read [up2 migration, tests and release gates](docs/3.1.6-up2.md) before deployment. Custom Nginx sites and in-container HTTPS described in the inherited upstream documentation below are **not supported by this hardened profile**. GitHub Actions publication has been removed; images are built and pushed manually. `/usr/bin/pull` is disabled: deploy a rebuilt application image instead. A source push does not imply image publication or application acceptance.
+The current source branch and image version are **3.1.6-up3** (`cs17899219/nginx-php-fpm:3.1.6-up3`), matching the downstream extension version. This release adds controlled root initialization and permanent nginx privilege drop to the up2 single `/index.php` HTTP execution profile. The local checkout directory may still be named `nginx-php-fpm-up2`; it is not the release version. Read [up2 migration prerequisites](docs/3.1.6-up2.md) and the up3 startup contract below before deployment. Custom Nginx sites and in-container HTTPS described in the inherited upstream documentation below are **not supported by this hardened profile**. GitHub Actions publication has been removed; images are built and pushed manually. `/usr/bin/pull` is disabled: deploy a rebuilt application image instead. A source push does not imply image publication or application acceptance.
 
-## Controlled root-init profile (local test)
+## Controlled root-init profile (3.1.6-up3)
 
 Current source replaces inherited root startup with integrity-checked initialization,
 optional sealed `/opt/app-init/{root,runtime}.sh` hooks, and permanent nginx UID 100
