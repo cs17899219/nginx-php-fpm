@@ -9,10 +9,10 @@ ENV php_vars /usr/local/etc/php/conf.d/docker-vars.ini
 ENV LUAJIT_LIB=/usr/lib
 ENV LUAJIT_INC=/usr/include/luajit-2.1
 
-# INstall nginx + lua and devel kit
-RUN apk add --no-cache nginx \
-    nginx-mod-http-lua \
-    nginx-mod-devel-kit
+# Security backport: keep nginx and its ABI-coupled modules on the patched release.
+RUN apk add --no-cache nginx=1.30.7-r0 \
+    nginx-mod-http-lua=1.30.7-r0 \
+    nginx-mod-devel-kit=1.30.7-r0
 
 RUN apk update && apk upgrade &&\
     apk add --no-cache \
