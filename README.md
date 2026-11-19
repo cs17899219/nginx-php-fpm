@@ -1,8 +1,10 @@
 ## nginx-php-fpm - ![docker hub](https://img.shields.io/docker/pulls/richarvey/nginx-php-fpm.svg) ![docker hub](https://img.shields.io/docker/stars/richarvey/nginx-php-fpm.svg) ![Github](https://img.shields.io/github/stars/richarvey/nginx-php-fpm.svg) ![docker version](https://img.shields.io/docker/v/richarvey/nginx-php-fpm?sort=semver)
 
-## Fork release: 3.1.6-up2
+## Fork release: 3.1.6-up2.1
 
-This fork builds `cs17899219/nginx-php-fpm:3.1.6-up2` from the verified up1 source baseline, with a single `/index.php` HTTP execution entry. Read [up2 migration, tests and release gates](docs/3.1.6-up2.md) before deployment. Custom Nginx sites and in-container HTTPS described in the inherited upstream documentation below are **not supported by this hardened profile**. GitHub Actions publication has been removed; images are built and pushed manually. `/usr/bin/pull` is disabled: deploy a rebuilt application image instead. A source push does not imply image publication or application acceptance.
+This security backport pins Nginx and its modules to **1.30.7-r0**, preserving the up2 startup, permissions and port 80 (no up3 migration). See [the security release notes](docs/3.1.6-up2.1.md).
+
+This fork builds `cs17899219/nginx-php-fpm:3.1.6-up2.1` from the verified up1 source baseline, with a single `/index.php` HTTP execution entry. Read [up2 migration, tests and release gates](docs/3.1.6-up2.md) before deployment. Custom Nginx sites and in-container HTTPS described in the inherited upstream documentation below are **not supported by this hardened profile**. GitHub Actions publication has been removed; images are built and pushed manually. `/usr/bin/pull` is disabled: deploy a rebuilt application image instead. A source push does not imply image publication or application acceptance.
 
 ## Overview
 This is a Dockerfile/image to build a container for nginx and php-fpm, with the ability to pull website code from git when the container is created, as well as allowing the container to push and pull changes to the code to and from git. The container also has the ability to update templated files with variables passed to docker in order to update your code and settings. There is support for lets encrypt SSL configurations, custom nginx configs, core nginx/PHP variable overrides for running preferences, X-Forwarded-For headers and UID mapping for local volume support.
